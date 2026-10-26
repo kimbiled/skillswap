@@ -1,7 +1,7 @@
 import { Button, Collapse, Tag, Timeline } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { Link } from 'react-router'
-import { faq, plans, roadmap, safety, sources, steps } from '../data'
+import { CONTACT_EMAIL, faq, plans, roadmap, safety, sources, steps } from '../data'
 
 export function HowItWorks() {
   return (
@@ -182,8 +182,8 @@ export function Footer() {
               {label}
             </Link>
           ))}
-          <a href="mailto:hello@skillswap.kz" className="inline-flex min-h-11 items-center px-2 text-[15px] text-ink-2 hover:text-ink hover:underline">
-            hello@skillswap.kz
+          <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex min-h-11 items-center px-2 text-[15px] text-ink-2 hover:text-ink hover:underline">
+            {CONTACT_EMAIL}
           </a>
         </nav>
       </div>

@@ -4,8 +4,9 @@
 export const WHATSAPP_PHONE = '77010120806'
 export const waLink = (text: string) => `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(text)}`
 
-// Where "forgot password" emails go; the admin answers with a temporary password from /admin.
-export const RESET_EMAIL = 'aluakhamzina06@gmail.com'
+// Team inbox for questions, universities and password resets (the admin answers resets from /admin).
+export const CONTACT_EMAIL = 'aluakhamzina06@gmail.com'
+export const RESET_EMAIL = CONTACT_EMAIL
 export const resetMailto = (login = '') =>
   `mailto:${RESET_EMAIL}?subject=${encodeURIComponent('Сброс пароля SkillSwap KZ')}&body=${encodeURIComponent(
     `Здравствуйте! Не могу войти в аккаунт.\nЛогин: ${login}\nTelegram: \n`,
@@ -71,7 +72,7 @@ export const plans = [
     title: 'Вузам и школам',
     price: 'По договорённости',
     items: ['Закрытая доска для своих студентов', 'Клубы и программы взаимного обучения', 'Отчёты о вовлечённости'],
-    cta: { label: 'Написать нам', href: 'mailto:hello@skillswap.kz?subject=SkillSwap%20KZ%20%D0%B4%D0%BB%D1%8F%20%D0%B2%D1%83%D0%B7%D0%B0', primary: false },
+    cta: { label: 'Написать нам', href: `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('SkillSwap KZ для вуза')}`, primary: false },
   },
 ]
 

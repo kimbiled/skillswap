@@ -2,7 +2,7 @@ import { Button, Checkbox, Form, Input, InputNumber, Select, Spin } from 'antd'
 import { Link, useNavigate } from 'react-router'
 import { Pin, vars } from '../components/Paper'
 import { useAction } from '../components/AdCard'
-import { skillOptions } from '../data'
+import { CONTACT_EMAIL, skillOptions } from '../data'
 import { LOGIN_RE, PASSWORD_MIN, TELEGRAM_RE, isPhone } from '../../shared/rules'
 import { currentUser, register, useDB, type RegisterInput } from '../lib/store'
 
@@ -173,8 +173,8 @@ export default function Join({ title = 'Повесьте своё объявле
           </p>
           <p className="mt-6 text-ink-2">
             Вопросы:{' '}
-            <a className="text-ink underline underline-offset-3 hover:decoration-2" href="mailto:hello@skillswap.kz">
-              hello@skillswap.kz
+            <a className="text-ink underline underline-offset-3 hover:decoration-2" href={`mailto:${CONTACT_EMAIL}`}>
+              {CONTACT_EMAIL}
             </a>
           </p>
         </div>
