@@ -84,6 +84,8 @@ export function Pricing() {
                   <li key={it} className="border-b border-rule py-2 text-ink-2">{it}</li>
                 ))}
               </ul>
+              {/* Note goes above the button so every card's button sits on the same bottom line. */}
+              {p.note && <p className="mb-3 text-sm text-ink-3">{p.note}</p>}
               {p.cta && (
                 <Button
                   block
@@ -94,7 +96,6 @@ export function Pricing() {
                   {p.cta.label}
                 </Button>
               )}
-              {p.note && <p className="mt-auto pt-2 text-sm text-ink-3">{p.note}</p>}
             </div>
           ))}
         </div>
