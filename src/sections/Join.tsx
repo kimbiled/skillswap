@@ -1,57 +1,124 @@
-import { useState } from 'react'
-import { Button, Form, Input, type FormInstance } from 'antd'
-import { Pin, TearTabs, vars } from '../components/Paper'
+import { Button, Checkbox, Form, Input, InputNumber, Select } from 'antd'
+import { useNavigate } from 'react-router'
+import { Pin, vars } from '../components/Paper'
+import { useAction } from '../components/AdCard'
+import { skillOptions } from '../data'
+import { currentUser, register, useDB, type RegisterInput } from '../lib/store'
 
-// Where join-form submissions go (Google Apps Script, Formspree, own API…).
-// Empty = no network request, the form only shows the success state.
-const FORM_ENDPOINT = ''
+type FormValues = RegisterInput & { parentConsent?: boolean; privacyConsent: boolean }
 
-export type JoinValues = {
-  name: string
-  school: string
-  give: string
-  want: string
-  telegram: string
+type Props = {
+  /** Prefill from the hero flyer. */
+  initialTeach?: string
+  initialLearn?: string
+  /** Where to go after registering. */
+  next?: string
+  title?: string
 }
 
-type Status = { ok: boolean; text: string } | null
-
 const fieldClass = 'border-dashed px-0 text-lg font-medium focus:border-solid'
+const tags = (s?: string) => (s?.trim() ? [s.trim()] : [])
+const options = skillOptions.map((s) => ({ value: s, label: s }))
 
-export default function Join({ form }: { form: FormInstance<JoinValues> }) {
-  const [sending, setSending] = useState(false)
-  const [status, setStatus] = useState<Status>(null)
-  const telegram = Form.useWatch('telegram', form)?.trim()
-  const handle = telegram ? (telegram.startsWith('@') ? telegram : `@${telegram}`) : '@username'
+function RegisterForm({ initialTeach, initialLearn, next = '/board' }: Props) {
+  const [form] = Form.useForm<FormValues>()
+  const navigate = useNavigate()
+  const run = useAction()
+  const age = Form.useWatch('age', form)
 
-  const onFinish = async (values: JoinValues) => {
-    setSending(true)
-    setStatus(null)
-    try {
-      if (FORM_ENDPOINT) {
-        const res = await fetch(FORM_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(values),
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      }
-      form.resetFields()
-      setStatus({ ok: true, text: 'Объявление висит. Напишем в Telegram, когда найдём пару.' })
-    } catch (err) {
-      console.error('Join form submit failed:', err)
-      setStatus({ ok: false, text: 'Заявка не отправилась. Проверьте интернет и попробуйте ещё раз или напишите на hello@skillswap.kz.' })
-    } finally {
-      setSending(false)
-    }
+  const onFinish = ({ parentConsent: _p, privacyConsent: _c, ...values }: FormValues) => {
+    run(() => {
+      register({ ...values, firstName: values.firstName.trim(), lastName: values.lastName.trim(), university: values.university.trim() })
+      navigate(next)
+    }, 'Готово! Ваше объявление на доске.')
   }
+
+  return (
+    <Form
+      form={form}
+      layout="vertical"
+      requiredMark={false}
+      onFinish={onFinish}
+      initialValues={{ teach: tags(initialTeach), learn: tags(initialLearn) }}
+      scrollToFirstError={{ block: 'center' }}
+      className="flyer w-full max-w-[560px] px-5 pt-12 pb-8 sm:px-8 [&_.ant-form-item-label>label]:font-semibold"
+      style={vars({ '--tilt': '0.4deg' })}
+    >
+      <Pin />
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        <Form.Item label="Фамилия" name="lastName" rules={[{ required: true, whitespace: true, message: 'Укажите фамилию.' }]}>
+          <Input variant="underlined" size="large" autoComplete="family-name" className={fieldClass} />
+        </Form.Item>
+        <Form.Item label="Имя" name="firstName" rules={[{ required: true, whitespace: true, message: 'Укажите имя.' }]}>
+          <Input variant="underlined" size="large" autoComplete="given-name" className={fieldClass} />
+        </Form.Item>
+      </div>
+      <div className="grid gap-x-6 sm:grid-cols-[120px_1fr]">
+        <Form.Item label="Возраст" name="age" rules={[{ required: true, message: 'Укажите возраст.' }, { type: 'number', min: 14, max: 35, message: 'От 14 до 35 лет.' }]}>
+          <InputNumber variant="underlined" size="large" min={14} max={35} controls={false} className="w-full [&_input]:px-0 [&_input]:text-lg" />
+        </Form.Item>
+        <Form.Item label="Вуз или школа" name="university" rules={[{ required: true, whitespace: true, message: 'Укажите вуз или школу.' }]}>
+          <Input variant="underlined" size="large" autoComplete="organization" className={fieldClass} />
+        </Form.Item>
+      </div>
+      <Form.Item
+        label="Telegram"
+        name="telegram"
+        extra="Его увидят только зарегистрированные участники. Телефон не нужен."
+        rules={[
+          { required: true, whitespace: true, message: 'Оставьте ник в Telegram — через него с вами свяжутся.' },
+          { pattern: /^@?[A-Za-z0-9_]{5,32}$/, message: 'Ник в Telegram: латиница, цифры и _, от 5 символов.' },
+        ]}
+      >
+        <Input variant="underlined" size="large" autoComplete="username" placeholder="@username" className={fieldClass} />
+      </Form.Item>
+      <Form.Item label="Научу" name="teach" rules={[{ required: true, type: 'array', min: 1, message: 'Добавьте хотя бы один навык.' }]}>
+        <Select mode="tags" size="large" options={options} placeholder="Выберите или впишите свой" tokenSeparators={[',']} maxCount={5} />
+      </Form.Item>
+      <Form.Item label="Хочу научиться" name="learn" rules={[{ required: true, type: 'array', min: 1, message: 'Добавьте хотя бы один навык.' }]}>
+        <Select mode="tags" size="large" options={options} placeholder="Выберите или впишите свой" tokenSeparators={[',']} maxCount={5} />
+      </Form.Item>
+      <Form.Item label="Пара слов о себе" name="about">
+        <Input.TextArea rows={2} maxLength={160} showCount placeholder="Например: объясняю с нуля, удобно по вечерам" />
+      </Form.Item>
+
+      {typeof age === 'number' && age < 18 && (
+        <Form.Item
+          name="parentConsent"
+          valuePropName="checked"
+          rules={[{ validator: (_, v) => (v ? Promise.resolve() : Promise.reject(new Error('До 18 лет нужно согласие родителей.'))) }]}
+        >
+          <Checkbox>Родители знают о регистрации и согласны</Checkbox>
+        </Form.Item>
+      )}
+      <Form.Item
+        name="privacyConsent"
+        valuePropName="checked"
+        rules={[{ validator: (_, v) => (v ? Promise.resolve() : Promise.reject(new Error('Без согласия мы не можем сохранить анкету.'))) }]}
+      >
+        <Checkbox>Согласен на обработку персональных данных</Checkbox>
+      </Form.Item>
+
+      <Button type="primary" size="large" htmlType="submit" block>
+        Повесить объявление
+      </Button>
+    </Form>
+  )
+}
+
+export default function Join({ title = 'Повесьте своё объявление', ...props }: Props) {
+  const db = useDB()
+  const me = currentUser(db)
+  const navigate = useNavigate()
 
   return (
     <section className="section-y bg-wall" id="join" aria-labelledby="join-title">
       <div className="container-page grid items-start gap-[clamp(40px,6vw,96px)] lg:grid-cols-[5fr_6fr]">
         <div>
-          <h2 className="h2" id="join-title">Повесьте своё объявление</h2>
-          <p className="lead mt-4">Пилот идёт в Астане. Мы лично подберём вам первую пару и напишем в Telegram.</p>
+          <h2 className="h2" id="join-title">{title}</h2>
+          <p className="lead mt-4">
+            После регистрации ваше объявление появится на доске, а вы сможете открывать Telegram других авторов.
+          </p>
           <p className="mt-6 text-ink-2">
             Вопросы:{' '}
             <a className="text-ink underline underline-offset-3 hover:decoration-2" href="mailto:hello@skillswap.kz">
@@ -60,48 +127,19 @@ export default function Join({ form }: { form: FormInstance<JoinValues> }) {
           </p>
         </div>
 
-        <Form
-          form={form}
-          layout="vertical"
-          requiredMark={false}
-          onFinish={onFinish}
-          scrollToFirstError={{ block: 'center' }}
-          className="flyer w-full max-w-[520px] px-5 pt-12 [--tabs-bleed:20px] sm:px-8 sm:[--tabs-bleed:32px] [&_.ant-form-item-label>label]:font-semibold"
-          style={vars({ '--tilt': '0.4deg' })}
-        >
-          <Pin />
-          <Form.Item label="Имя" name="name" rules={[{ required: true, whitespace: true, message: 'Напишите, как к вам обращаться.' }]}>
-            <Input variant="underlined" size="large" autoComplete="given-name" className={fieldClass} />
-          </Form.Item>
-          <Form.Item label="Вуз или школа" name="school" rules={[{ required: true, whitespace: true, message: 'Укажите вуз или школу.' }]}>
-            <Input variant="underlined" size="large" autoComplete="organization" className={fieldClass} />
-          </Form.Item>
-          <Form.Item label="Научу" name="give" rules={[{ required: true, whitespace: true, message: 'Напишите хотя бы один навык, которому можете научить.' }]}>
-            <Input variant="underlined" size="large" className={fieldClass} />
-          </Form.Item>
-          <Form.Item label="Хочу научиться" name="want" rules={[{ required: true, whitespace: true, message: 'Напишите, чему хотите научиться.' }]}>
-            <Input variant="underlined" size="large" className={fieldClass} />
-          </Form.Item>
-          <Form.Item
-            label="Telegram"
-            name="telegram"
-            rules={[
-              { required: true, whitespace: true, message: 'Оставьте ник в Telegram, туда мы пришлём пару.' },
-              { pattern: /^@?[A-Za-z0-9_]{4,32}$/, message: 'Ник в Telegram: латиница, цифры и _, от 4 символов.' },
-            ]}
-          >
-            <Input variant="underlined" size="large" autoComplete="username" placeholder="@username" className={fieldClass} />
-          </Form.Item>
-
-          <Button type="primary" size="large" htmlType="submit" block loading={sending}>
-            {sending ? 'Отправляем…' : 'Повесить объявление'}
-          </Button>
-          <p className="mt-4 text-center text-[13px] text-ink-3">Отправляя заявку, вы соглашаетесь на обработку персональных данных.</p>
-          <p role="status" className={`text-center text-[15px] font-semibold empty:hidden ${status?.ok ? 'text-ok' : 'text-err'} ${status ? 'mt-3' : ''}`}>
-            {status?.text}
-          </p>
-          <TearTabs label={handle} count={6} />
-        </Form>
+        {me ? (
+          <div className="flyer max-w-[560px] px-8 pt-12 pb-8" style={vars({ '--tilt': '0.4deg' })}>
+            <Pin />
+            <p className="h3">{me.firstName}, ваше объявление уже висит</p>
+            <p className="mt-2 text-ink-2">Научу: {me.teach.join(', ')}. Хочу: {me.learn.join(', ')}.</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button type="primary" onClick={() => navigate('/board')}>Открыть доску</Button>
+              <Button onClick={() => navigate('/me')}>Мои обмены</Button>
+            </div>
+          </div>
+        ) : (
+          <RegisterForm {...props} />
+        )}
       </div>
     </section>
   )

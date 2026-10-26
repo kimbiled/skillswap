@@ -1,5 +1,6 @@
 import { Button, Collapse, Tag, Timeline } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
+import { Link } from 'react-router'
 import { faq, plans, roadmap, safety, sources, steps } from '../data'
 
 export function HowItWorks() {
@@ -84,7 +85,12 @@ export function Pricing() {
                 ))}
               </ul>
               {p.cta && (
-                <Button block type={p.cta.primary ? 'primary' : 'default'} href={p.cta.href}>
+                <Button
+                  block
+                  type={p.cta.primary ? 'primary' : 'default'}
+                  href={p.cta.href}
+                  {...(p.cta.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                >
                   {p.cta.label}
                 </Button>
               )}
@@ -167,15 +173,18 @@ export function Footer() {
         <p className="font-bold">SkillSwap KZ, Астана, 2026</p>
         <nav aria-label="Ссылки в подвале" className="flex flex-wrap gap-x-2">
           {[
-            ['#how', 'Как это работает'],
-            ['#pricing', 'Вузам'],
-            ['#faq', 'Вопросы'],
-            ['mailto:hello@skillswap.kz', 'hello@skillswap.kz'],
-          ].map(([href, label]) => (
-            <a key={href} href={href} className="inline-flex min-h-11 items-center px-2 text-[15px] text-ink-2 hover:text-ink hover:underline">
+            ['/board', 'Доска'],
+            ['/#how', 'Как это работает'],
+            ['/#pricing', 'Вузам'],
+            ['/#faq', 'Вопросы'],
+          ].map(([to, label]) => (
+            <Link key={to} to={to} className="inline-flex min-h-11 items-center px-2 text-[15px] text-ink-2 hover:text-ink hover:underline">
               {label}
-            </a>
+            </Link>
           ))}
+          <a href="mailto:hello@skillswap.kz" className="inline-flex min-h-11 items-center px-2 text-[15px] text-ink-2 hover:text-ink hover:underline">
+            hello@skillswap.kz
+          </a>
         </nav>
       </div>
     </footer>

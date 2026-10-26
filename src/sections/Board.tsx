@@ -1,14 +1,20 @@
+import { Button } from 'antd'
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router'
 import { exampleFlyers } from '../data'
 import { Pin, TearTabs, vars } from '../components/Paper'
 
 export default function Board() {
+  const navigate = useNavigate()
   return (
     <section className="section-y bg-wall" aria-labelledby="board-title">
       <div className="container-page">
-        <div className="mb-12">
-          <h2 className="h2" id="board-title">Что вешают на доску</h2>
-          <p className="lead mt-4">Это примеры, а не реальные участники. Нажмите на листочек внизу объявления, чтобы оторвать его.</p>
+        <div className="mb-12 flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <h2 className="h2" id="board-title">Что вешают на доску</h2>
+            <p className="lead mt-4">Это примеры. Telegram автора на доске открывается после регистрации.</p>
+          </div>
+          <Button type="primary" size="large" onClick={() => navigate('/board')}>Открыть доску</Button>
         </div>
 
         <div className="grid items-start gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
