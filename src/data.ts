@@ -4,6 +4,13 @@
 export const WHATSAPP_PHONE = '77010120806'
 export const waLink = (text: string) => `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(text)}`
 
+// Where "forgot password" emails go; the admin answers with a temporary password from /admin.
+export const RESET_EMAIL = 'aluakhamzina06@gmail.com'
+export const resetMailto = (login = '') =>
+  `mailto:${RESET_EMAIL}?subject=${encodeURIComponent('Сброс пароля SkillSwap KZ')}&body=${encodeURIComponent(
+    `Здравствуйте! Не могу войти в аккаунт.\nЛогин: ${login}\nTelegram: \n`,
+  )}`
+
 // Anchors on the landing page; Nav prefixes them with "/" when used from other pages.
 export const navLinks = [
   { href: '#how', label: 'Как это работает' },
