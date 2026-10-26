@@ -3,7 +3,7 @@ import { App, Button, Drawer, Empty, Rate } from 'antd'
 import dayjs from 'dayjs'
 import { Pin, vars } from './Paper'
 import {
-  markContacted, markFailed, openContact, ratingOf, reviewsFor, useDB, userById,
+  LESSON_PRICE, availableOf, markContacted, markFailed, openContact, ratingOf, reviewsFor, useDB, userById,
   type Exchange, type User,
 } from '../lib/store'
 
@@ -88,6 +88,7 @@ export default function AdCard({ owner, me, exchange, tilt = 0, onNeedAuth }: Pr
   const run = useAction()
   const [reviewsOpen, setReviewsOpen] = useState(false)
   const count = reviewsFor(db, owner.id).length
+  const short = me ? availableOf(db, me.id) < LESSON_PRICE : false
 
   const reveal = () => (me ? run(() => openContact(owner.id)) : onNeedAuth())
 
@@ -115,8 +116,15 @@ export default function AdCard({ owner, me, exchange, tilt = 0, onNeedAuth }: Pr
       <div className="mt-auto -mx-6 border-t-[1.5px] border-dashed border-rule-dash px-6 pt-4 pb-6">
         {!exchange ? (
           <>
-            <Button block onClick={reveal}>Показать Telegram</Button>
+            <Button block onClick={reveal} disabled={short} aria-describedby={short ? `short-${owner.id}` : undefined}>
+              Показать Telegram
+            </Button>
             {!me && <p className="mt-2 text-center text-sm text-ink-3">Контакт виден после регистрации</p>}
+            {short && (
+              <p id={`short-${owner.id}`} className="mt-2 text-center text-sm text-ink-3">
+                Урок стоит {LESSON_PRICE} SC. Проведите занятие, чтобы заработать баллы.
+              </p>
+            )}
           </>
         ) : (
           <div>

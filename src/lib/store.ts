@@ -21,14 +21,21 @@ export type User = {
 }
 
 /**
- * opened    — Telegram revealed, waiting for "связались" / "не вышло"
- * contacted — they talked, no date yet
- * scheduled — date agreed
- * met       — they met, waiting for feedback
- * done      — lesson confirmed with a review
- * failed    — nothing came of it
+ * opened     — Telegram revealed, waiting for "связались" / "не вышло"
+ * contacted  — they talked, no date yet (learner's coins are reserved from here)
+ * scheduled  — date agreed
+ * met        — they met, waiting for the learner's review
+ * confirming — learner left a review, waiting for the ad owner to confirm
+ * done       — owner confirmed: coins moved, review published
+ * failed     — nothing came of it, reservation released
+ * disputed   — owner says the lesson didn't happen; goes to moderation
  */
-export type ExchangeStatus = 'opened' | 'contacted' | 'scheduled' | 'met' | 'done' | 'failed'
+export type ExchangeStatus = 'opened' | 'contacted' | 'scheduled' | 'met' | 'confirming' | 'done' | 'failed' | 'disputed'
+
+/** Launch pricing: every lesson costs the learner 10 SC and pays the teacher 10 SC. */
+export const LESSON_PRICE = 10
+/** Given at registration so a newcomer can take a first lesson before teaching one. */
+export const WELCOME_BONUS = 10
 
 export type Exchange = {
   id: string
@@ -135,14 +142,30 @@ export function useDB(): DB {
 
 export const currentUser = (d: DB) => d.users.find((u) => u.id === d.currentUserId) ?? null
 export const userById = (d: DB, id: string) => d.users.find((u) => u.id === id)
-export const reviewsFor = (d: DB, userId: string) => d.reviews.filter((r) => r.targetId === userId)
+/** Only reviews of lessons the owner confirmed (seeded demo reviews have no exchange). */
+export const reviewsFor = (d: DB, userId: string) =>
+  d.reviews.filter((r) => r.targetId === userId && (!r.exchangeId || d.exchanges.find((e) => e.id === r.exchangeId)?.status === 'done'))
 export const ratingOf = (d: DB, userId: string) => {
   const list = reviewsFor(d, userId)
   return list.length ? list.reduce((s, r) => s + r.rating, 0) / list.length : 0
 }
 export const exchangeWith = (d: DB, learnerId: string, teacherId: string) =>
   d.exchanges.find((e) => e.learnerId === learnerId && e.teacherId === teacherId)
-export const ACTIVE: ExchangeStatus[] = ['contacted', 'scheduled', 'met']
+export const ACTIVE: ExchangeStatus[] = ['contacted', 'scheduled', 'met', 'confirming']
+
+/* Coins are derived from confirmed lessons instead of stored, so they can't drift out of sync. */
+export const balanceOf = (d: DB, userId: string) => {
+  const done = d.exchanges.filter((e) => e.status === 'done')
+  const taught = done.filter((e) => e.teacherId === userId).length
+  const learned = done.filter((e) => e.learnerId === userId).length
+  return WELCOME_BONUS + LESSON_PRICE * (taught - learned)
+}
+/** Held for lessons the user agreed to but the owner hasn't confirmed yet. */
+export const reservedOf = (d: DB, userId: string) =>
+  LESSON_PRICE * d.exchanges.filter((e) => e.learnerId === userId && ACTIVE.includes(e.status)).length
+export const availableOf = (d: DB, userId: string) => balanceOf(d, userId) - reservedOf(d, userId)
+
+const NOT_ENOUGH = `Для урока нужно ${LESSON_PRICE} SC. Проведите занятие, чтобы заработать баллы.`
 
 /* ---------- actions ---------- */
 
@@ -163,6 +186,7 @@ export function openContact(teacherId: string) {
   const me = db.currentUserId
   if (!me) throw new Error('Нужно зарегистрироваться')
   if (exchangeWith(db, me, teacherId)) return
+  if (availableOf(db, me) < LESSON_PRICE) throw new Error(NOT_ENOUGH)
   const t = now()
   const ex: Exchange = { id: uid(), learnerId: me, teacherId, status: 'opened', createdAt: t, updatedAt: t }
   commit({ ...db, exchanges: [...db.exchanges, ex] })
@@ -175,21 +199,50 @@ function patchExchange(id: string, patch: Partial<Exchange>) {
   })
 }
 
-export const markContacted = (id: string) => patchExchange(id, { status: 'contacted' })
+const findExchange = (id: string) => {
+  const ex = db.exchanges.find((e) => e.id === id)
+  if (!ex) throw new Error('Обмен не найден')
+  return ex
+}
+
+/** "Связались": reserves the lesson price, so it re-checks coins in case several contacts were opened. */
+export function markContacted(id: string) {
+  const ex = findExchange(id)
+  if (availableOf(db, ex.learnerId) < LESSON_PRICE) throw new Error(NOT_ENOUGH)
+  patchExchange(id, { status: 'contacted' })
+}
 export const markFailed = (id: string) => patchExchange(id, { status: 'failed' })
 export const scheduleExchange = (id: string, dateISO: string) => patchExchange(id, { status: 'scheduled', date: dateISO })
 export const markMet = (id: string) => patchExchange(id, { status: 'met' })
 
-/** Lesson happened: close the exchange and attach the learner's review to the teacher. */
-export function completeExchange(id: string, review: { rating: number; text: string; photo?: string }) {
-  const ex = db.exchanges.find((e) => e.id === id)
-  if (!ex) throw new Error('Обмен не найден')
+/** Learner says the lesson happened and leaves a review; it stays hidden until the owner confirms. */
+export function submitLesson(id: string, review: { rating: number; text: string; photo?: string }) {
+  const ex = findExchange(id)
   const t = now()
   commit({
     ...db,
-    exchanges: db.exchanges.map((e) => (e.id === id ? { ...e, status: 'done', updatedAt: t } : e)),
+    exchanges: db.exchanges.map((e) => (e.id === id ? { ...e, status: 'confirming', updatedAt: t } : e)),
     reviews: [...db.reviews, { id: uid(), exchangeId: id, authorId: ex.learnerId, targetId: ex.teacherId, createdAt: t, ...review }],
   })
+}
+
+/**
+ * Ad owner confirms the lesson: coins move and the review goes public.
+ * Demo owners can't log in, so the learner may confirm on their behalf in this prototype.
+ */
+export function confirmLesson(id: string) {
+  const ex = findExchange(id)
+  const teacher = userById(db, ex.teacherId)
+  if (db.currentUserId !== ex.teacherId && !teacher?.demo) throw new Error('Подтвердить урок может только автор объявления')
+  if (ex.status !== 'confirming') throw new Error('Урок ещё не отмечен учеником')
+  patchExchange(id, { status: 'done' })
+}
+
+/** Ad owner says the lesson didn't happen: nothing moves, the case goes to moderation. */
+export function disputeLesson(id: string) {
+  const ex = findExchange(id)
+  if (db.currentUserId !== ex.teacherId) throw new Error('Оспорить урок может только автор объявления')
+  patchExchange(id, { status: 'disputed' })
 }
 
 export function resetDemo() {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Drawer } from 'antd'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { navLinks } from '../data'
-import { ACTIVE, currentUser, useDB } from '../lib/store'
+import { ACTIVE, availableOf, currentUser, useDB } from '../lib/store'
 import { Logo } from './Paper'
 
 const linkClass = 'inline-flex min-h-11 items-center rounded-control px-3 text-[15px] font-medium text-ink-2 transition-colors hover:bg-ink/5 hover:text-ink'
@@ -13,8 +13,11 @@ export default function Nav() {
   const navigate = useNavigate()
   const db = useDB()
   const me = currentUser(db)
-  // Lessons in progress that wait for the user's next step.
-  const pending = me ? db.exchanges.filter((e) => e.learnerId === me.id && ACTIVE.includes(e.status)).length : 0
+  // Lessons the user is taking, plus lessons they teach that wait for their confirmation.
+  const pending = me
+    ? db.exchanges.filter((e) => (e.learnerId === me.id && ACTIVE.includes(e.status)) || (e.teacherId === me.id && e.status === 'confirming')).length
+    : 0
+  const coins = me ? availableOf(db, me.id) : 0
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4)
@@ -46,11 +49,16 @@ export default function Nav() {
             </Link>
           ))}
         </nav>
-        <div className="hidden lg:block">
+        <div className="hidden items-center gap-3 lg:flex">
           {me ? (
-            <Badge count={pending} size="small" color="#1B2A6B">
-              <Button onClick={() => go('/me')}>Мои обмены</Button>
-            </Badge>
+            <>
+              <span className="rounded-md bg-gold px-2 py-0.5 text-sm font-bold tabular-nums" title="Доступно Skill Coins">
+                {coins} SC
+              </span>
+              <Badge count={pending} size="small" color="#1B2A6B">
+                <Button onClick={() => go('/me')}>Мои обмены</Button>
+              </Badge>
+            </>
           ) : (
             <Button type="primary" onClick={() => go('/register')}>Регистрация</Button>
           )}
@@ -69,7 +77,7 @@ export default function Nav() {
             </Link>
           ))}
           <Button type="primary" size="large" block className="mt-6" onClick={() => go(me ? '/me' : '/register')}>
-            {me ? `Мои обмены${pending ? ` (${pending})` : ''}` : 'Регистрация'}
+            {me ? `Мои обмены${pending ? ` (${pending})` : ''}, ${coins} SC` : 'Регистрация'}
           </Button>
         </nav>
       </Drawer>

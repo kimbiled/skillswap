@@ -1,16 +1,16 @@
 import { useRef, useState } from 'react'
 import { Button } from 'antd'
 import { coinLessons } from '../data'
+import { LESSON_PRICE as PRICE, WELCOME_BONUS } from '../lib/store'
 
-const PRICE = 10
 const MAX_ROWS = 5
 
 type Row = { id: number; text: string; delta: number }
 
 export default function Coins() {
-  const [balance, setBalance] = useState(0)
-  const [rows, setRows] = useState<Row[]>([])
-  const counters = useRef({ id: 0, taught: 0, learned: 0 })
+  const [balance, setBalance] = useState(WELCOME_BONUS)
+  const [rows, setRows] = useState<Row[]>([{ id: 0, text: 'Бонус за регистрацию', delta: WELCOME_BONUS }])
+  const counters = useRef({ id: 1, taught: 0, learned: 0 })
 
   const add = (delta: number) => {
     const c = counters.current
@@ -30,8 +30,8 @@ export default function Coins() {
         <div>
           <h2 className="h2" id="coins-title">Не нужно искать того, кто хочет именно вашу гитару</h2>
           <p className="lead mt-4">
-            За каждый проведённый час вы получаете 10 Skill Coins. Тратите их у кого угодно: научили Айгерим
-            презентациям, а английский взяли у Ерлана.
+            Любой урок стоит {PRICE} Skill Coins, за каждый проведённый урок вы получаете {PRICE}. Тратите их у кого
+            угодно: научили Айгерим презентациям, а английский взяли у Ерлана. На первый урок дарим {WELCOME_BONUS} SC.
           </p>
           <p className="lead mt-3">Баллы нельзя купить, вывести или обменять на деньги. Это только мера времени, которое вы отдали другим.</p>
         </div>
