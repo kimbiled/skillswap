@@ -69,6 +69,7 @@ const EVENT_LABEL: Record<string, { label: string; color?: string }> = {
   dispute: { label: 'Урок оспорен', color: 'red' },
   admin_resolve: { label: 'Решение админа', color: 'purple' },
   admin_reset_password: { label: 'Сброс пароля', color: 'purple' },
+  admin_purge_demo: { label: 'Удалены демо-данные', color: 'purple' },
 }
 
 const fmt = (iso?: string) => (iso ? dayjs(iso).format('D MMM YYYY, HH:mm') : '—')
@@ -91,6 +92,7 @@ function describe(e: LogEvent) {
   if (d.reason === 'unknown_login') parts.push('такого логина нет')
   if (typeof d.attempt === 'number') parts.push(`попытка ${d.attempt}`)
   if (typeof d.note === 'string') parts.push(`«${d.note}»`)
+  if (typeof d.removed === 'number') parts.push(`удалено аккаунтов: ${d.removed}`)
   if (typeof d.ip === 'string') parts.push(`IP ${d.ip}`)
   return parts.join(', ')
 }
@@ -256,9 +258,30 @@ function UsersTable({ users, onChange }: { users: AdminUser[]; onChange: () => v
       })
     })
 
+  const demoCount = users.filter((u) => u.login.startsWith('demo_')).length
+  const purgeDemo = () =>
+    run(async () => {
+      await api('/api/admin', { body: { action: 'purge_demo' } })
+      onChange()
+    }, 'Демо-данные удалены.')
+
   return (
     <>
-      <Input.Search allowClear placeholder="Имя, логин, Telegram, телефон…" value={query} onChange={(e) => setQuery(e.target.value)} className="mb-4 max-w-sm" aria-label="Поиск пользователей" />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Input.Search allowClear placeholder="Имя, логин, Telegram, телефон…" value={query} onChange={(e) => setQuery(e.target.value)} className="max-w-sm" aria-label="Поиск пользователей" />
+        {demoCount > 0 && (
+          <Popconfirm
+            title={`Удалить демо-аккаунты (${demoCount})?`}
+            description="Удалятся пользователи с логином demo_… вместе с их уроками и отзывами. Настоящие аккаунты не затронет."
+            okText="Удалить"
+            okButtonProps={{ danger: true }}
+            cancelText="Отмена"
+            onConfirm={purgeDemo}
+          >
+            <Button danger>Удалить демо-данные ({demoCount})</Button>
+          </Popconfirm>
+        )}
+      </div>
       <Table<AdminUser>
         rowKey="id"
         size="middle"

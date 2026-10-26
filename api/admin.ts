@@ -112,9 +112,16 @@ type Body = { action?: unknown; id?: unknown; decision?: unknown; note?: unknown
 export const POST = route(async (req, q) => {
   const adminId = await requireAdmin(q, req)
   const b = await readJson<Body>(req)
-  if (typeof b.id !== 'string' || !UUID_RE.test(b.id)) throw new HttpError(400, 'Некорректный запрос')
   const note = typeof b.note === 'string' ? b.note.trim().slice(0, 300) || undefined : undefined
 
+  /** Removes the accounts made by scripts/seed-demo.mjs, with their lessons and reviews. */
+  if (b.action === 'purge_demo') {
+    const removed = await q(`DELETE FROM users WHERE login LIKE 'demo\\_%' RETURNING id`)
+    await logEvent(q, { type: 'admin_purge_demo', actorId: adminId, details: { removed: removed.length } })
+    return json({ ok: true, removed: removed.length })
+  }
+
+  if (typeof b.id !== 'string' || !UUID_RE.test(b.id)) throw new HttpError(400, 'Некорректный запрос')
   switch (b.action) {
     /** Settle a disputed or stuck lesson: "done" moves coins and publishes the review, "failed" cancels it. */
     case 'resolve': {

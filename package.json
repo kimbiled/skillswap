@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "seed:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^2.1.2",
