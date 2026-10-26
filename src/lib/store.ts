@@ -54,6 +54,7 @@ type DB = {
   exchanges: Exchange[]
   reviews: Review[]
   currentUserId: string | null
+  isAdmin?: boolean // only decides whether to show the link; the API checks admin rights itself
 }
 
 let db: DB = { loaded: false, users: [], exchanges: [], reviews: [], currentUserId: null }
@@ -74,7 +75,7 @@ export function useDB(): DB {
   )
 }
 
-async function api<T = { ok: true }>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function api<T = { ok: true }>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   let res: Response
   try {
     res = await fetch(path, {

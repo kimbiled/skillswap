@@ -48,6 +48,11 @@ export default function Nav() {
               {l.label}
             </Link>
           ))}
+          {db.isAdmin && (
+            <NavLink to="/admin" className={({ isActive }) => `${linkClass} ${isActive ? 'bg-ink/5 text-ink' : ''}`}>
+              Админка
+            </NavLink>
+          )}
         </nav>
         <div className="hidden items-center gap-3 lg:flex">
           {me ? (
@@ -74,7 +79,11 @@ export default function Nav() {
 
       <Drawer open={open} onClose={() => setOpen(false)} placement="right" size={320} title="SkillSwap KZ">
         <nav aria-label="Разделы" className="flex flex-col">
-          {[{ href: '/board', label: 'Доска' }, ...navLinks.map((l) => ({ href: `/${l.href}`, label: l.label }))].map((l) => (
+          {[
+            { href: '/board', label: 'Доска' },
+            ...navLinks.map((l) => ({ href: `/${l.href}`, label: l.label })),
+            ...(db.isAdmin ? [{ href: '/admin', label: 'Админка' }] : []),
+          ].map((l) => (
             <Link key={l.href} to={l.href} onClick={() => setOpen(false)} className="flex min-h-13 items-center border-b border-rule text-xl font-semibold text-ink">
               {l.label}
             </Link>

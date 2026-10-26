@@ -109,3 +109,40 @@ export async function requireUser(q: Query, req: Request) {
   if (!id) throw new HttpError(401, 'Войдите в аккаунт')
   return id
 }
+
+/* ---------- admin ---------- */
+
+// Admins are regular accounts listed in the ADMIN_LOGINS env var (comma-separated logins).
+const adminLogins = () =>
+  (process.env.ADMIN_LOGINS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+
+export async function isAdmin(q: Query, userId: string | null) {
+  const list = adminLogins()
+  if (!userId || list.length === 0) return false
+  const [u] = await q(`SELECT login FROM users WHERE id = $1`, [userId])
+  return Boolean(u && list.includes(u.login))
+}
+
+export async function requireAdmin(q: Query, req: Request) {
+  const id = await requireUser(q, req)
+  if (!(await isAdmin(q, id))) throw new HttpError(403, 'Нет доступа')
+  return id
+}
+
+/* ---------- audit log ---------- */
+
+export const clientIp = (req: Request) => req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
+
+type LogEntry = {
+  type: string
+  actorId?: string | null
+  exchangeId?: string | null
+  targetId?: string | null
+  details?: Record<string, unknown>
+}
+
+export async function logEvent(q: Query, e: LogEntry) {
+  await q(`INSERT INTO events (type, actor_id, exchange_id, target_id, details) VALUES ($1, $2, $3, $4, $5::jsonb)`, [
+    e.type, e.actorId ?? null, e.exchangeId ?? null, e.targetId ?? null, e.details ? JSON.stringify(e.details) : null,
+  ])
+}

@@ -52,6 +52,17 @@ const SCHEMA = [
     photo text,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
+  // Audit log for the admin page. Passwords are never written here.
+  `CREATE TABLE IF NOT EXISTS events (
+    id bigserial PRIMARY KEY,
+    at timestamptz NOT NULL DEFAULT now(),
+    type text NOT NULL,
+    actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    exchange_id uuid REFERENCES exchanges(id) ON DELETE SET NULL,
+    target_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    details jsonb
+  )`,
+  `CREATE INDEX IF NOT EXISTS events_at_idx ON events (at DESC)`,
   // Which of the teacher's skills the lesson is about; drives learning progress per skill.
   `ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS skill text`,
   `CREATE INDEX IF NOT EXISTS exchanges_learner_idx ON exchanges (learner_id)`,

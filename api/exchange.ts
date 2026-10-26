@@ -1,5 +1,5 @@
-import type { Query } from './_lib/db.js'
-import { HttpError, json, readJson, requireUser, route } from './_lib/http.js'
+import type { Query, Row } from './_lib/db.js'
+import { HttpError, json, logEvent, readJson, requireUser, route } from './_lib/http.js'
 import { ACTIVE, LESSON_PRICE, WELCOME_BONUS, type ExchangeStatus } from '../shared/rules.js'
 
 type Body = {
@@ -38,15 +38,18 @@ async function transition(q: Query, id: string, me: string, role: 'learner' | 't
   const rows = await q(
     `UPDATE exchanges SET status = $1, date = COALESCE($2::timestamptz, date), updated_at = now()
      WHERE id = $3 AND ${role}_id = $4 AND status = ANY($5)
-     RETURNING id`,
+     RETURNING id, learner_id, teacher_id`,
     [to, date ?? null, id, me, from],
   )
   if (!rows[0]) throw UNAVAILABLE
+  return rows[0]
 }
 
 export const POST = route(async (req, q) => {
   const me = await requireUser(q, req)
   const b = await readJson<Body>(req)
+  let ex: Row | undefined // the exchange that changed, for the audit log
+  let details: Record<string, unknown> | undefined
 
   switch (b.action) {
     case 'open': {
@@ -56,30 +59,33 @@ export const POST = route(async (req, q) => {
       const [teacher] = await q(`SELECT teach FROM users WHERE id = $1`, [teacherId])
       if (!teacher) throw new HttpError(404, 'Объявление не найдено')
       const skill = typeof b.skill === 'string' && teacher.teach.includes(b.skill) ? b.skill : teacher.teach[0]
-      await q(
+      ;[ex] = await q(
         `INSERT INTO exchanges (learner_id, teacher_id, status, skill) VALUES ($1, $2, 'opened', $3)
-         ON CONFLICT (learner_id, teacher_id) DO NOTHING`,
+         ON CONFLICT (learner_id, teacher_id) DO NOTHING
+         RETURNING id, learner_id, teacher_id`,
         [me, teacherId, skill],
       )
+      details = { skill }
       break
     }
     case 'contacted': {
       // Agreeing to a lesson reserves its price, so re-check in case several contacts were opened.
       if ((await available(q, me)) < LESSON_PRICE) throw new HttpError(402, NOT_ENOUGH)
-      await transition(q, uuid(b.id), me, 'learner', ['opened'], 'contacted')
+      ex = await transition(q, uuid(b.id), me, 'learner', ['opened'], 'contacted')
       break
     }
     case 'failed':
-      await transition(q, uuid(b.id), me, 'learner', ['opened', 'contacted', 'scheduled', 'met'], 'failed')
+      ex = await transition(q, uuid(b.id), me, 'learner', ['opened', 'contacted', 'scheduled', 'met'], 'failed')
       break
     case 'schedule': {
       const date = typeof b.date === 'string' ? new Date(b.date) : null
       if (!date || Number.isNaN(date.getTime())) throw new HttpError(400, 'Укажите дату встречи')
-      await transition(q, uuid(b.id), me, 'learner', ['contacted', 'scheduled'], 'scheduled', date.toISOString())
+      ex = await transition(q, uuid(b.id), me, 'learner', ['contacted', 'scheduled'], 'scheduled', date.toISOString())
+      details = { date: date.toISOString() }
       break
     }
     case 'met':
-      await transition(q, uuid(b.id), me, 'learner', ['scheduled'], 'met')
+      ex = await transition(q, uuid(b.id), me, 'learner', ['scheduled'], 'met')
       break
     case 'submit': {
       const rating = Number(b.review?.rating)
@@ -91,7 +97,7 @@ export const POST = route(async (req, q) => {
         throw new HttpError(400, 'Фото не подошло: нужна картинка JPEG, PNG или WebP до 700 КБ')
       }
       // One statement, so the review and the status change can't get out of step.
-      const rows = await q(
+      ;[ex] = await q(
         `WITH ex AS (
            UPDATE exchanges SET status = 'confirming', updated_at = now()
            WHERE id = $1 AND learner_id = $2 AND status = 'met'
@@ -99,20 +105,26 @@ export const POST = route(async (req, q) => {
          )
          INSERT INTO reviews (exchange_id, author_id, target_id, rating, text, photo)
          SELECT id, learner_id, teacher_id, $3, $4, $5 FROM ex
-         RETURNING id`,
+         RETURNING exchange_id AS id, author_id AS learner_id, target_id AS teacher_id`,
         [uuid(b.id), me, rating, text, photo ?? null],
       )
-      if (!rows[0]) throw UNAVAILABLE
+      if (!ex) throw UNAVAILABLE
+      details = { rating, photo: photo != null }
       break
     }
     case 'confirm':
-      await transition(q, uuid(b.id), me, 'teacher', ['confirming'], 'done')
+      ex = await transition(q, uuid(b.id), me, 'teacher', ['confirming'], 'done')
       break
     case 'dispute':
-      await transition(q, uuid(b.id), me, 'teacher', ['confirming'], 'disputed')
+      ex = await transition(q, uuid(b.id), me, 'teacher', ['confirming'], 'disputed')
       break
     default:
       throw new HttpError(400, 'Неизвестное действие')
+  }
+
+  if (ex) {
+    const other = ex.learner_id === me ? ex.teacher_id : ex.learner_id
+    await logEvent(q, { type: b.action, actorId: me, exchangeId: ex.id, targetId: other, details })
   }
   return json({ ok: true })
 })

@@ -1,4 +1,4 @@
-import { HttpError, createSession, hashPassword, json, readJson, route } from './_lib/http.js'
+import { HttpError, clientIp, createSession, hashPassword, json, logEvent, readJson, route } from './_lib/http.js'
 import { LOGIN_RE, PASSWORD_MIN, TELEGRAM_RE, isPhone, normalizePhone } from '../shared/rules.js'
 
 type Body = {
@@ -55,5 +55,6 @@ export const POST = route(async (req, q) => {
     throw new HttpError(409, taken?.login_taken ? 'Этот логин уже занят.' : 'Этот Telegram уже зарегистрирован. Войдите в свой аккаунт.')
   }
 
+  await logEvent(q, { type: 'register', actorId: rows[0].id, details: { login, ip: clientIp(req) } })
   return json({ ok: true }, 201, { 'Set-Cookie': await createSession(q, rows[0].id) })
 })

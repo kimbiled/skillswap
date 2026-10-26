@@ -1,5 +1,5 @@
 import { iso } from './_lib/db.js'
-import { json, route, sessionUserId } from './_lib/http.js'
+import { isAdmin, json, route, sessionUserId } from './_lib/http.js'
 
 /**
  * Everything the site needs in one response: ads, the viewer's exchanges and reviews.
@@ -27,6 +27,7 @@ export const GET = route(async (req, q) => {
 
   return json({
     currentUserId: me,
+    isAdmin: await isAdmin(q, me),
     users: users.map((u) => {
       const isMe = u.id === me
       const reveal = isMe || counterparts.has(u.id)
