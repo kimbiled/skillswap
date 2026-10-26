@@ -1,19 +1,21 @@
 import { useState, type ReactNode } from 'react'
-import { Badge, Button, DatePicker, Empty, Form, Input, Popconfirm, Rate, Steps, Tabs, Tag, Upload } from 'antd'
+import { Badge, Button, DatePicker, Empty, Form, Input, Popconfirm, Progress, Rate, Spin, Steps, Tabs, Tag, Timeline, Upload } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { Navigate, useNavigate } from 'react-router'
-import { ReviewsDrawer, TelegramLink, shortName, useAction, years } from '../components/AdCard'
+import { Contacts, RatingLine, ReviewsDrawer, formatRating, shortName, useAction, years } from '../components/AdCard'
 import {
-  ACTIVE, LESSON_PRICE, WELCOME_BONUS, availableOf, balanceOf, confirmLesson, currentUser, disputeLesson, logout,
-  markFailed, markMet, ratingOf, reservedOf, resetDemo, reviewsFor, scheduleExchange, submitLesson, useDB, userById,
-  type Exchange, type ExchangeStatus,
+  ACTIVE, LESSON_PRICE, WELCOME_BONUS, availableOf, balanceOf, confirmLesson, currentUser, disputeLesson, learningProgress,
+  logout, markFailed, markMet, photoUrl, ratingOf, reservedOf, reviewsFor, scheduleExchange, submitLesson, useDB, userById,
+  type Exchange, type ExchangeStatus, type User,
 } from '../lib/store'
 
 const STEP_OF: Partial<Record<ExchangeStatus, number>> = { contacted: 1, scheduled: 2, met: 3, confirming: 4 }
 const fmt = (iso: string) => dayjs(iso).format('D MMMM, HH:mm')
+/** A soft reference point for the progress bars, not a judgement of skill level. */
+const LESSONS_GOAL = 6
 
-/** Shrinks a photo to ≤800px JPEG so a few of them fit in browser storage. */
+/** Shrinks a photo to ≤800px JPEG so uploads stay small. */
 async function downscale(file: File, max = 800): Promise<string> {
   const bitmap = await createImageBitmap(file)
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height))
@@ -27,7 +29,7 @@ async function downscale(file: File, max = 800): Promise<string> {
 type FeedbackValues = { rating: number; text: string }
 
 function FeedbackForm({ exchange }: { exchange: Exchange }) {
-  const run = useAction()
+  const [run, busy] = useAction()
   const [photo, setPhoto] = useState<string>()
   const [photoError, setPhotoError] = useState<string>()
 
@@ -60,20 +62,20 @@ function FeedbackForm({ exchange }: { exchange: Exchange }) {
             } catch {
               setPhotoError('Не получилось открыть картинку. Попробуйте другой файл.')
             }
-            return false // keep it local, nothing is uploaded anywhere
+            return false // sent together with the review, not uploaded on its own
           }}
           onRemove={() => setPhoto(undefined)}
         >
           <Button icon={<UploadOutlined />}>Прикрепить</Button>
         </Upload>
       </Form.Item>
-      <Button type="primary" htmlType="submit">Урок прошёл</Button>
+      <Button type="primary" htmlType="submit" loading={busy}>Урок прошёл</Button>
     </Form>
   )
 }
 
 function ScheduleForm({ exchange }: { exchange: Exchange }) {
-  const run = useAction()
+  const [run, busy] = useAction()
   const [date, setDate] = useState<Dayjs | null>(null)
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -87,7 +89,7 @@ function ScheduleForm({ exchange }: { exchange: Exchange }) {
         size="large"
         className="min-w-64"
       />
-      <Button type="primary" size="large" disabled={!date} onClick={() => date && run(() => scheduleExchange(exchange.id, date.toISOString()), 'Дата сохранена.')}>
+      <Button type="primary" size="large" loading={busy} disabled={!date} onClick={() => date && run(() => scheduleExchange(exchange.id, date.toISOString()), 'Дата сохранена.')}>
         Назначили дату
       </Button>
     </div>
@@ -102,7 +104,7 @@ function ReviewPreview({ exchangeId }: { exchangeId: string }) {
     <div className="mt-3">
       <Rate disabled value={review.rating} className="text-sm" />
       <p className="mt-1 text-ink-2">{review.text}</p>
-      {review.photo && <img src={review.photo} alt="Фото с урока или скриншот переписки" className="mt-2 max-h-40 rounded-paper" />}
+      {review.hasPhoto && <img src={photoUrl(review)} alt="Фото с урока или скриншот переписки" loading="lazy" className="mt-2 max-h-40 rounded-paper" />}
     </div>
   )
 }
@@ -110,7 +112,7 @@ function ReviewPreview({ exchangeId }: { exchangeId: string }) {
 /** A lesson the user is taking. */
 function LearningCard({ exchange }: { exchange: Exchange }) {
   const db = useDB()
-  const run = useAction()
+  const [run, busy] = useAction()
   const teacher = userById(db, exchange.teacherId)
   if (!teacher) return null
 
@@ -119,13 +121,10 @@ function LearningCard({ exchange }: { exchange: Exchange }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-ink-3">Учусь у</p>
-          <h3 className="h3">{shortName(teacher)} — {teacher.teach.join(', ')}</h3>
+          <h3 className="h3">{shortName(teacher)} — {exchange.skill ?? teacher.teach.join(', ')}</h3>
           <p className="mt-1 text-sm text-ink-3">{years(teacher.age)}, {teacher.university}</p>
         </div>
-        <div className="sm:text-right">
-          <p className="text-sm font-semibold text-ink-3">Telegram</p>
-          <TelegramLink user={teacher} />
-        </div>
+        <Contacts user={teacher} />
       </div>
 
       <Steps
@@ -144,7 +143,7 @@ function LearningCard({ exchange }: { exchange: Exchange }) {
       {exchange.status === 'contacted' && <ScheduleForm exchange={exchange} />}
       {exchange.status === 'scheduled' && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button type="primary" size="large" onClick={() => run(() => markMet(exchange.id))}>Встретились</Button>
+          <Button type="primary" size="large" loading={busy} onClick={() => run(() => markMet(exchange.id))}>Встретились</Button>
           <p className="text-ink-2">Встреча: {exchange.date && fmt(exchange.date)}</p>
         </div>
       )}
@@ -155,11 +154,6 @@ function LearningCard({ exchange }: { exchange: Exchange }) {
             Ждём, когда {teacher.firstName} подтвердит урок. После этого {LESSON_PRICE} SC перейдут к автору, а ваш отзыв появится в объявлении.
           </p>
           <ReviewPreview exchangeId={exchange.id} />
-          {teacher.demo && (
-            <Button className="mt-4" onClick={() => run(() => confirmLesson(exchange.id), 'Урок подтверждён.')}>
-              Демо: подтвердить за автора
-            </Button>
-          )}
         </div>
       )}
 
@@ -181,15 +175,15 @@ function LearningCard({ exchange }: { exchange: Exchange }) {
 /** A lesson the user is giving: they only act when the learner asks for confirmation. */
 function TeachingCard({ exchange }: { exchange: Exchange }) {
   const db = useDB()
-  const run = useAction()
+  const [run, busy] = useAction()
   const learner = userById(db, exchange.learnerId)
   if (!learner) return null
 
   return (
     <article className="flyer pb-6">
-      <p className="text-sm font-semibold text-ink-3">Учу</p>
+      <p className="text-sm font-semibold text-ink-3">Учу{exchange.skill ? `: ${exchange.skill}` : ''}</p>
       <h3 className="h3">{shortName(learner)}, {years(learner.age)}, {learner.university}</h3>
-      <p className="mt-1 text-sm">Telegram: <TelegramLink user={learner} /></p>
+      <div className="mt-2"><Contacts user={learner} /></div>
       {exchange.date && <p className="mt-2 text-ink-2">Встреча: {fmt(exchange.date)}</p>}
 
       {exchange.status === 'confirming' ? (
@@ -197,7 +191,7 @@ function TeachingCard({ exchange }: { exchange: Exchange }) {
           <p className="font-semibold">Ученик отметил, что урок прошёл. Подтвердите:</p>
           <ReviewPreview exchangeId={exchange.id} />
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button type="primary" onClick={() => run(() => confirmLesson(exchange.id), `Урок подтверждён, +${LESSON_PRICE} SC.`)}>
+            <Button type="primary" loading={busy} onClick={() => run(() => confirmLesson(exchange.id), `Урок подтверждён, +${LESSON_PRICE} SC.`)}>
               Подтвердить урок
             </Button>
             <Popconfirm
@@ -207,7 +201,7 @@ function TeachingCard({ exchange }: { exchange: Exchange }) {
               cancelText="Отмена"
               onConfirm={() => run(() => disputeLesson(exchange.id))}
             >
-              <Button>Урока не было</Button>
+              <Button disabled={busy}>Урока не было</Button>
             </Popconfirm>
           </div>
         </div>
@@ -237,7 +231,8 @@ function History({ list, meId }: { list: Exchange[]; meId: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-semibold">
                 {asTeacher ? 'Учил: ' : 'Учился у: '}
-                {other ? `${shortName(other)}${asTeacher ? '' : ` — ${other.teach.join(', ')}`}` : 'Участник'}
+                {other ? shortName(other) : 'Участник'}
+                {e.skill ? ` — ${e.skill}` : ''}
               </p>
               <span className="flex items-center gap-2">
                 {e.status === 'done' && (
@@ -257,14 +252,90 @@ function History({ list, meId }: { list: Exchange[]; meId: string }) {
   )
 }
 
+function Stat({ value, label }: { value: ReactNode; label: string }) {
+  return (
+    <div className="border-t-2 border-ink pt-3">
+      <p className="text-[31px] leading-none font-extrabold tracking-[-0.03em] tabular-nums">{value}</p>
+      <p className="mt-1 text-sm text-ink-2">{label}</p>
+    </div>
+  )
+}
+
+function ProgressTab({ me }: { me: User }) {
+  const db = useDB()
+  const learned = db.exchanges.filter((e) => e.learnerId === me.id && e.status === 'done')
+  const taught = db.exchanges.filter((e) => e.teacherId === me.id && e.status === 'done')
+  const progress = learningProgress(db, me)
+  const myRating = ratingOf(db, me.id)
+  const timeline = [...learned, ...taught].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 10)
+
+  return (
+    <div className="grid gap-10">
+      <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+        <Stat value={learned.length} label="уроков пройдено" />
+        <Stat value={taught.length} label="уроков проведено" />
+        <Stat value={reviewsFor(db, me.id).length ? formatRating(myRating) : '—'} label="ваш рейтинг как учителя" />
+        <Stat value={progress.filter((p) => p.done > 0).length} label="навыков в работе" />
+      </div>
+
+      <div>
+        <h2 className="h3">Навыки, которые вы изучаете</h2>
+        <p className="mt-1 text-sm text-ink-3">Шкала до {LESSONS_GOAL} уроков — ориентир, а не оценка уровня.</p>
+        <ul className="mt-4 grid gap-4">
+          {progress.map((p) => (
+            <li key={p.skill} className="rounded-paper bg-paper p-4 shadow-paper">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold">{p.skill}</span>
+                <span className="text-sm text-ink-2">
+                  {p.done ? `уроков: ${p.done}` : 'ещё не начинали'}
+                  {p.inProgress ? `, в процессе: ${p.inProgress}` : ''}
+                </span>
+              </div>
+              <Progress percent={Math.round((Math.min(p.done, LESSONS_GOAL) / LESSONS_GOAL) * 100)} showInfo={false} strokeColor="#1B2A6B" className="m-0 mt-2" />
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <h2 className="h3">Последние уроки</h2>
+        {timeline.length === 0 ? (
+          <p className="mt-2 text-ink-3">Здесь появятся подтверждённые уроки — и те, где вы учились, и те, где учили.</p>
+        ) : (
+          <Timeline
+            className="mt-4"
+            items={timeline.map((e) => {
+              const asTeacher = e.teacherId === me.id
+              const other = userById(db, asTeacher ? e.learnerId : e.teacherId)
+              return {
+                color: asTeacher ? '#FEC50C' : '#1B2A6B',
+                content: (
+                  <div>
+                    <p className="text-sm text-ink-3">{dayjs(e.date ?? e.updatedAt).format('D MMMM YYYY')}</p>
+                    <p className="font-semibold">
+                      {asTeacher ? 'Провели урок' : 'Прошли урок'}{e.skill ? `: ${e.skill}` : ''}
+                    </p>
+                    <p className="text-ink-2">{asTeacher ? 'Ученик' : 'Учитель'}: {other ? shortName(other) : 'участник'}</p>
+                  </div>
+                ),
+              }
+            })}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ExchangesPage() {
   const db = useDB()
   const me = currentUser(db)
   const navigate = useNavigate()
-  const run = useAction()
+  const [run] = useAction()
   const [reviewsOpen, setReviewsOpen] = useState(false)
 
-  if (!me) return <Navigate to="/register?next=/me" replace />
+  if (!db.loaded) return <div className="grid min-h-[50vh] place-items-center"><Spin size="large" /></div>
+  if (!me) return <Navigate to="/login?next=/me" replace />
 
   const byRecent = (a: Exchange, b: Exchange) => b.updatedAt.localeCompare(a.updatedAt)
   const learning = db.exchanges.filter((e) => e.learnerId === me.id && ACTIVE.includes(e.status)).sort(byRecent)
@@ -273,8 +344,6 @@ export default function ExchangesPage() {
   const history = db.exchanges
     .filter((e) => (e.learnerId === me.id || e.teacherId === me.id) && ['done', 'failed', 'disputed'].includes(e.status))
     .sort(byRecent)
-  const myReviews = reviewsFor(db, me.id).length
-  const balance = balanceOf(db, me.id)
   const reserved = reservedOf(db, me.id)
 
   return (
@@ -326,6 +395,7 @@ export default function ExchangesPage() {
                 <Empty description="Пока никто не договорился с вами об уроке. Когда кто-то откроет ваше объявление и отметит «Связались», урок появится здесь." />
               ),
             },
+            { key: 'progress', label: 'Прогресс', children: <ProgressTab me={me} /> },
             { key: 'history', label: `История (${history.length})`, children: <History list={history} meId={me.id} /> },
             {
               key: 'profile',
@@ -334,27 +404,16 @@ export default function ExchangesPage() {
                 <div className="grid gap-6">
                   <div className="flyer max-w-[560px] pb-6">
                     <p className="h3">{me.firstName} {me.lastName}</p>
-                    <p className="mt-1 text-ink-3">{years(me.age)}, {me.university}, @{me.telegram}</p>
+                    <p className="mt-1 text-ink-3">Логин: {me.login}. {years(me.age)}, {me.university}</p>
+                    <div className="mt-3"><Contacts user={me} /></div>
                     <p className="mt-4 text-sm font-semibold text-ink-3">Научу</p>
                     <p className="text-lg font-semibold">{me.teach.join(', ')}</p>
                     <p className="mt-3 text-sm font-semibold text-ink-3">Хочу научиться</p>
                     <p className="text-lg font-semibold">{me.learn.join(', ')}</p>
                     {me.about && <p className="mt-3 text-ink-2">{me.about}</p>}
-                    <button type="button" onClick={() => setReviewsOpen(true)} className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink-2 hover:text-ink">
-                      <Rate disabled allowHalf value={ratingOf(db, me.id)} className="text-sm" />
-                      <span className="underline underline-offset-3">{myReviews ? `Отзывы обо мне: ${myReviews}` : 'Отзывов о вас пока нет'}</span>
-                    </button>
+                    <RatingLine user={me} onClick={() => setReviewsOpen(true)} />
                     <div className="mt-6 flex flex-wrap gap-3 border-t border-rule pt-4">
-                      <Button onClick={() => run(() => { logout(); navigate('/') })}>Выйти</Button>
-                      <Popconfirm
-                        title="Сбросить демо-данные?"
-                        description="Удалятся ваш профиль, обмены и отзывы в этом браузере."
-                        okText="Сбросить"
-                        cancelText="Отмена"
-                        onConfirm={() => run(() => { resetDemo(); navigate('/') })}
-                      >
-                        <Button danger type="text">Сбросить демо</Button>
-                      </Popconfirm>
+                      <Button onClick={() => run(async () => { await logout(); navigate('/') })}>Выйти</Button>
                     </div>
                     <ReviewsDrawer user={me} open={reviewsOpen} onClose={() => setReviewsOpen(false)} />
                   </div>
@@ -383,7 +442,7 @@ export default function ExchangesPage() {
                       })}
                       <li className="flex min-h-12 items-center justify-between gap-4 font-bold">
                         <span>Баланс</span>
-                        <span className="tabular-nums">{balance} SC</span>
+                        <span className="tabular-nums">{balanceOf(db, me.id)} SC</span>
                       </li>
                     </ul>
                   </div>

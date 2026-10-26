@@ -1,11 +1,12 @@
-import { Button, Checkbox, Form, Input, InputNumber, Select } from 'antd'
-import { useNavigate } from 'react-router'
+import { Button, Checkbox, Form, Input, InputNumber, Select, Spin } from 'antd'
+import { Link, useNavigate } from 'react-router'
 import { Pin, vars } from '../components/Paper'
 import { useAction } from '../components/AdCard'
 import { skillOptions } from '../data'
+import { LOGIN_RE, PASSWORD_MIN, TELEGRAM_RE, isPhone } from '../../shared/rules'
 import { currentUser, register, useDB, type RegisterInput } from '../lib/store'
 
-type FormValues = RegisterInput & { parentConsent?: boolean; privacyConsent: boolean }
+type FormValues = Omit<RegisterInput, 'privacyConsent'> & { password2: string; privacyConsent?: boolean }
 
 type Props = {
   /** Prefill from the hero flyer. */
@@ -19,19 +20,28 @@ type Props = {
 const fieldClass = 'border-dashed px-0 text-lg font-medium focus:border-solid'
 const tags = (s?: string) => (s?.trim() ? [s.trim()] : [])
 const options = skillOptions.map((s) => ({ value: s, label: s }))
+const mustBeChecked = (msg: string) => ({
+  validator: (_: unknown, v: unknown) => (v ? Promise.resolve() : Promise.reject(new Error(msg))),
+})
 
 function RegisterForm({ initialTeach, initialLearn, next = '/board' }: Props) {
   const [form] = Form.useForm<FormValues>()
   const navigate = useNavigate()
-  const run = useAction()
+  const [run, busy] = useAction()
   const age = Form.useWatch('age', form)
 
-  const onFinish = ({ parentConsent: _p, privacyConsent: _c, ...values }: FormValues) => {
-    run(() => {
-      register({ ...values, firstName: values.firstName.trim(), lastName: values.lastName.trim(), university: values.university.trim() })
+  const onFinish = ({ password2: _repeat, ...v }: FormValues) =>
+    run(async () => {
+      await register({
+        ...v,
+        login: v.login.trim().toLowerCase(),
+        firstName: v.firstName.trim(),
+        lastName: v.lastName.trim(),
+        university: v.university.trim(),
+        privacyConsent: v.privacyConsent === true,
+      })
       navigate(next)
     }, 'Готово! Ваше объявление на доске.')
-  }
 
   return (
     <Form
@@ -45,6 +55,38 @@ function RegisterForm({ initialTeach, initialLearn, next = '/board' }: Props) {
       style={vars({ '--tilt': '0.4deg' })}
     >
       <Pin />
+      <p className="mb-4 text-sm font-semibold text-ink-3">Вход в аккаунт</p>
+      <Form.Item
+        label="Логин"
+        name="login"
+        extra="Латиница, цифры, точка и _. Его видите только вы."
+        rules={[
+          { required: true, whitespace: true, message: 'Придумайте логин.' },
+          { validator: (_, v: string) => (!v || LOGIN_RE.test(v.trim().toLowerCase()) ? Promise.resolve() : Promise.reject(new Error('Латиница, цифры, точка и _, от 3 символов.'))) },
+        ]}
+      >
+        <Input variant="underlined" size="large" autoComplete="username" autoCapitalize="none" className={fieldClass} />
+      </Form.Item>
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        <Form.Item label="Пароль" name="password" rules={[{ required: true, message: 'Придумайте пароль.' }, { min: PASSWORD_MIN, message: `Не короче ${PASSWORD_MIN} символов.` }]}>
+          <Input.Password variant="underlined" size="large" autoComplete="new-password" className="px-0 [&_input]:text-lg" />
+        </Form.Item>
+        <Form.Item
+          label="Пароль ещё раз"
+          name="password2"
+          dependencies={['password']}
+          rules={[
+            { required: true, message: 'Повторите пароль.' },
+            ({ getFieldValue }) => ({
+              validator: (_, v) => (!v || v === getFieldValue('password') ? Promise.resolve() : Promise.reject(new Error('Пароли не совпадают.'))),
+            }),
+          ]}
+        >
+          <Input.Password variant="underlined" size="large" autoComplete="new-password" className="px-0 [&_input]:text-lg" />
+        </Form.Item>
+      </div>
+
+      <p className="mt-2 mb-4 border-t border-rule pt-6 text-sm font-semibold text-ink-3">Объявление</p>
       <div className="grid gap-x-6 sm:grid-cols-2">
         <Form.Item label="Фамилия" name="lastName" rules={[{ required: true, whitespace: true, message: 'Укажите фамилию.' }]}>
           <Input variant="underlined" size="large" autoComplete="family-name" className={fieldClass} />
@@ -61,17 +103,32 @@ function RegisterForm({ initialTeach, initialLearn, next = '/board' }: Props) {
           <Input variant="underlined" size="large" autoComplete="organization" className={fieldClass} />
         </Form.Item>
       </div>
-      <Form.Item
-        label="Telegram"
-        name="telegram"
-        extra="Его увидят только зарегистрированные участники. Телефон не нужен."
-        rules={[
-          { required: true, whitespace: true, message: 'Оставьте ник в Telegram — через него с вами свяжутся.' },
-          { pattern: /^@?[A-Za-z0-9_]{5,32}$/, message: 'Ник в Telegram: латиница, цифры и _, от 5 символов.' },
-        ]}
-      >
-        <Input variant="underlined" size="large" autoComplete="username" placeholder="@username" className={fieldClass} />
-      </Form.Item>
+
+      <p className="mt-2 mb-1 border-t border-rule pt-6 text-sm font-semibold text-ink-3">Контакты</p>
+      <p className="mb-4 text-sm text-ink-3">Их увидят только те, кто войдёт в аккаунт и откроет ваше объявление.</p>
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        <Form.Item
+          label="Telegram"
+          name="telegram"
+          rules={[
+            { required: true, whitespace: true, message: 'Укажите ник в Telegram.' },
+            { pattern: TELEGRAM_RE, message: 'Латиница, цифры и _, от 5 символов.' },
+          ]}
+        >
+          <Input variant="underlined" size="large" placeholder="@username" autoCapitalize="none" className={fieldClass} />
+        </Form.Item>
+        <Form.Item
+          label="WhatsApp"
+          name="whatsapp"
+          rules={[
+            { required: true, whitespace: true, message: 'Укажите номер WhatsApp.' },
+            { validator: (_, v: string) => (!v || isPhone(v) ? Promise.resolve() : Promise.reject(new Error('Например, +7 701 123 45 67.'))) },
+          ]}
+        >
+          <Input variant="underlined" size="large" type="tel" inputMode="tel" autoComplete="tel" placeholder="+7 701 123 45 67" className={fieldClass} />
+        </Form.Item>
+      </div>
+
       <Form.Item label="Научу" name="teach" rules={[{ required: true, type: 'array', min: 1, message: 'Добавьте хотя бы один навык.' }]}>
         <Select mode="tags" size="large" options={options} placeholder="Выберите или впишите свой" tokenSeparators={[',']} maxCount={5} />
       </Form.Item>
@@ -83,25 +140,20 @@ function RegisterForm({ initialTeach, initialLearn, next = '/board' }: Props) {
       </Form.Item>
 
       {typeof age === 'number' && age < 18 && (
-        <Form.Item
-          name="parentConsent"
-          valuePropName="checked"
-          rules={[{ validator: (_, v) => (v ? Promise.resolve() : Promise.reject(new Error('До 18 лет нужно согласие родителей.'))) }]}
-        >
+        <Form.Item name="parentConsent" valuePropName="checked" rules={[mustBeChecked('До 18 лет нужно согласие родителей.')]}>
           <Checkbox>Родители знают о регистрации и согласны</Checkbox>
         </Form.Item>
       )}
-      <Form.Item
-        name="privacyConsent"
-        valuePropName="checked"
-        rules={[{ validator: (_, v) => (v ? Promise.resolve() : Promise.reject(new Error('Без согласия мы не можем сохранить анкету.'))) }]}
-      >
+      <Form.Item name="privacyConsent" valuePropName="checked" rules={[mustBeChecked('Без согласия мы не можем сохранить анкету.')]}>
         <Checkbox>Согласен на обработку персональных данных</Checkbox>
       </Form.Item>
 
-      <Button type="primary" size="large" htmlType="submit" block>
+      <Button type="primary" size="large" htmlType="submit" block loading={busy}>
         Повесить объявление
       </Button>
+      <p className="mt-4 text-center text-ink-2">
+        Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(next)}`} className="text-ink underline underline-offset-3">Войти</Link>
+      </p>
     </Form>
   )
 }
@@ -117,7 +169,7 @@ export default function Join({ title = 'Повесьте своё объявле
         <div>
           <h2 className="h2" id="join-title">{title}</h2>
           <p className="lead mt-4">
-            После регистрации ваше объявление появится на доске, а вы сможете открывать Telegram других авторов.
+            После регистрации ваше объявление появится на доске, а вы сможете открывать контакты других авторов.
           </p>
           <p className="mt-6 text-ink-2">
             Вопросы:{' '}
@@ -127,7 +179,9 @@ export default function Join({ title = 'Повесьте своё объявле
           </p>
         </div>
 
-        {me ? (
+        {!db.loaded ? (
+          <div className="grid min-h-60 place-items-center"><Spin /></div>
+        ) : me ? (
           <div className="flyer max-w-[560px] px-8 pt-12 pb-8" style={vars({ '--tilt': '0.4deg' })}>
             <Pin />
             <p className="h3">{me.firstName}, ваше объявление уже висит</p>

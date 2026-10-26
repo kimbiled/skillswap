@@ -60,7 +60,10 @@ export default function Nav() {
               </Badge>
             </>
           ) : (
-            <Button type="primary" onClick={() => go('/register')}>Регистрация</Button>
+            <>
+              <Button onClick={() => go('/login')}>Войти</Button>
+              <Button type="primary" onClick={() => go('/register')}>Регистрация</Button>
+            </>
           )}
         </div>
 
@@ -79,6 +82,11 @@ export default function Nav() {
           <Button type="primary" size="large" block className="mt-6" onClick={() => go(me ? '/me' : '/register')}>
             {me ? `Мои обмены${pending ? ` (${pending})` : ''}, ${coins} SC` : 'Регистрация'}
           </Button>
+          {!me && (
+            <Button size="large" block className="mt-3" onClick={() => go('/login')}>
+              Войти
+            </Button>
+          )}
         </nav>
       </Drawer>
     </header>
