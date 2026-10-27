@@ -191,6 +191,10 @@ export const register = (input: RegisterInput) => mutate('/api/register', input)
 export const login = (loginName: string, password: string) => mutate('/api/session', { login: loginName, password })
 export const logout = () => mutate('/api/session', {}, 'DELETE')
 
+export type ProfileInput = Omit<RegisterInput, 'login' | 'password' | 'privacyConsent'>
+export const updateProfile = (input: ProfileInput) => mutate('/api/profile', { action: 'update', ...input })
+export const changePassword = (current: string, next: string) => mutate('/api/profile', { action: 'password', current, next })
+
 const exchange = (action: string, payload: Record<string, unknown>) => mutate('/api/exchange', { action, ...payload })
 
 export const openContact = (teacherId: string, skill?: string) => exchange('open', { teacherId, skill })

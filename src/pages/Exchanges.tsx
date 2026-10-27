@@ -413,6 +413,7 @@ export default function ExchangesPage() {
                     {me.about && <p className="mt-3 text-ink-2">{me.about}</p>}
                     <RatingLine user={me} onClick={() => setReviewsOpen(true)} />
                     <div className="mt-6 flex flex-wrap gap-3 border-t border-rule pt-4">
+                      <Button type="primary" onClick={() => navigate('/profile')}>Редактировать профиль</Button>
                       <Button onClick={() => run(async () => { await logout(); navigate('/') })}>Выйти</Button>
                     </div>
                     <ReviewsDrawer user={me} open={reviewsOpen} onClose={() => setReviewsOpen(false)} />

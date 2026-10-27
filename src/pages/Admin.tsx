@@ -70,6 +70,13 @@ const EVENT_LABEL: Record<string, { label: string; color?: string }> = {
   admin_resolve: { label: 'Решение админа', color: 'purple' },
   admin_reset_password: { label: 'Сброс пароля', color: 'purple' },
   admin_purge_demo: { label: 'Удалены демо-данные', color: 'purple' },
+  profile_update: { label: 'Изменил профиль', color: 'blue' },
+  password_change: { label: 'Сменил пароль', color: 'blue' },
+}
+
+const FIELD_LABEL: Record<string, string> = {
+  firstName: 'имя', lastName: 'фамилия', age: 'возраст', university: 'вуз', telegram: 'Telegram',
+  whatsapp: 'WhatsApp', teach: '«Научу»', learn: '«Хочу научиться»', about: 'о себе',
 }
 
 const fmt = (iso?: string) => (iso ? dayjs(iso).format('D MMM YYYY, HH:mm') : '—')
@@ -93,6 +100,7 @@ function describe(e: LogEvent) {
   if (typeof d.attempt === 'number') parts.push(`попытка ${d.attempt}`)
   if (typeof d.note === 'string') parts.push(`«${d.note}»`)
   if (typeof d.removed === 'number') parts.push(`удалено аккаунтов: ${d.removed}`)
+  if (Array.isArray(d.changed)) parts.push(`изменено: ${d.changed.map((f) => FIELD_LABEL[f as string] ?? f).join(', ')}`)
   if (typeof d.ip === 'string') parts.push(`IP ${d.ip}`)
   return parts.join(', ')
 }

@@ -48,6 +48,11 @@ export default function Nav() {
               {l.label}
             </Link>
           ))}
+          {me && (
+            <NavLink to="/profile" className={({ isActive }) => `${linkClass} ${isActive ? 'bg-ink/5 text-ink' : ''}`}>
+              Профиль
+            </NavLink>
+          )}
           {db.isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => `${linkClass} ${isActive ? 'bg-ink/5 text-ink' : ''}`}>
               Админка
@@ -82,6 +87,7 @@ export default function Nav() {
           {[
             { href: '/board', label: 'Доска' },
             ...navLinks.map((l) => ({ href: `/${l.href}`, label: l.label })),
+            ...(me ? [{ href: '/profile', label: 'Мой профиль' }] : []),
             ...(db.isAdmin ? [{ href: '/admin', label: 'Админка' }] : []),
           ].map((l) => (
             <Link key={l.href} to={l.href} onClick={() => setOpen(false)} className="flex min-h-13 items-center border-b border-rule text-xl font-semibold text-ink">

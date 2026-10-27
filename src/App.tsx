@@ -14,6 +14,7 @@ const BoardPage = lazy(() => import('./pages/Board'))
 const ExchangesPage = lazy(() => import('./pages/Exchanges'))
 const LoginPage = lazy(() => import('./pages/Login'))
 const AdminPage = lazy(() => import('./pages/Admin'))
+const ProfilePage = lazy(() => import('./pages/Profile'))
 
 /** Scrolls to #anchors after navigation (also across pages) and to the top otherwise. */
 function ScrollManager() {
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="register" element={<RegisterPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="me" element={<ExchangesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
