@@ -56,7 +56,7 @@ export const POST = route(async (req, q) => {
       const teacherId = uuid(b.teacherId)
       if (teacherId === me) throw new HttpError(400, 'Это ваше объявление')
       if ((await available(q, me)) < LESSON_PRICE) throw new HttpError(402, NOT_ENOUGH)
-      const [teacher] = await q(`SELECT teach FROM users WHERE id = $1`, [teacherId])
+      const [teacher] = await q(`SELECT teach FROM users WHERE id = $1 AND NOT ad_hidden`, [teacherId])
       if (!teacher) throw new HttpError(404, 'Объявление не найдено')
       const skill = typeof b.skill === 'string' && teacher.teach.includes(b.skill) ? b.skill : teacher.teach[0]
       ;[ex] = await q(

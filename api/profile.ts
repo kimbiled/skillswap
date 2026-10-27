@@ -14,7 +14,7 @@ const COLUMNS: Record<keyof Profile, string> = {
   about: 'about',
 }
 
-/** Edit your own ad and contacts, or change your password. The login itself can't be changed. */
+/** Edit your own ad and contacts, take the ad off the board, or change your password. The login itself can't be changed. */
 export const POST = route(async (req, q) => {
   const me = await requireUser(q, req)
   const b = await readJson<Record<string, unknown>>(req)
@@ -35,6 +35,13 @@ export const POST = route(async (req, q) => {
       (k) => JSON.stringify(before?.[COLUMNS[k]] ?? null) !== JSON.stringify(p[k]),
     )
     if (changed.length) await logEvent(q, { type: 'profile_update', actorId: me, details: { changed } })
+    return json({ ok: true })
+  }
+
+  if (b.action === 'hide' || b.action === 'show') {
+    const hidden = b.action === 'hide'
+    const rows = await q(`UPDATE users SET ad_hidden = $2 WHERE id = $1 AND ad_hidden <> $2 RETURNING id`, [me, hidden])
+    if (rows[0]) await logEvent(q, { type: hidden ? 'ad_hide' : 'ad_show', actorId: me })
     return json({ ok: true })
   }
 

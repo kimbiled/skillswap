@@ -9,7 +9,7 @@ export const GET = route(async (req, q) => {
   const me = await sessionUserId(q, req)
 
   const users = await q(
-    `SELECT id, login, first_name, last_name, age, university, telegram, whatsapp, teach, learn, about, created_at
+    `SELECT id, login, first_name, last_name, age, university, telegram, whatsapp, teach, learn, about, ad_hidden, created_at
      FROM users ORDER BY created_at DESC LIMIT 1000`,
   )
   const exchanges = me
@@ -41,6 +41,7 @@ export const GET = route(async (req, q) => {
         teach: u.teach,
         learn: u.learn,
         about: u.about ?? undefined,
+        hidden: u.ad_hidden || undefined,
         telegram: reveal ? u.telegram : undefined,
         whatsapp: reveal ? u.whatsapp : undefined,
         createdAt: iso(u.created_at),

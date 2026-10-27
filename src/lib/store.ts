@@ -19,6 +19,7 @@ export type User = {
   teach: string[]
   learn: string[]
   about?: string
+  hidden?: boolean // the owner took the ad off the board
   telegram?: string // only for yourself and people you share an exchange with
   whatsapp?: string
   createdAt: string
@@ -148,7 +149,7 @@ export function recommendationsFor(d: DB, me: User, limit = 3) {
   const wanted = new Set(me.learn.map(norm))
   const offered = new Set(me.teach.map(norm))
   return d.users
-    .filter((u) => u.id !== me.id && !exchangeWith(d, me.id, u.id) && u.teach.some((t) => wanted.has(norm(t))))
+    .filter((u) => u.id !== me.id && !u.hidden && !exchangeWith(d, me.id, u.id) && u.teach.some((t) => wanted.has(norm(t))))
     .map((u) => {
       const mutual = u.learn.some((l) => offered.has(norm(l)))
       const score = (mutual ? 100 : 0) + ratingOf(d, u.id) * 10 + reviewsFor(d, u.id).length
@@ -193,6 +194,7 @@ export const logout = () => mutate('/api/session', {}, 'DELETE')
 
 export type ProfileInput = Omit<RegisterInput, 'login' | 'password' | 'privacyConsent'>
 export const updateProfile = (input: ProfileInput) => mutate('/api/profile', { action: 'update', ...input })
+export const setAdHidden = (hidden: boolean) => mutate('/api/profile', { action: hidden ? 'hide' : 'show' })
 export const changePassword = (current: string, next: string) => mutate('/api/profile', { action: 'password', current, next })
 
 const exchange = (action: string, payload: Record<string, unknown>) => mutate('/api/exchange', { action, ...payload })

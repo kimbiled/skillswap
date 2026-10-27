@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
-import { Button, Form, Input, Spin } from 'antd'
+import { App, Button, Form, Input, Spin } from 'antd'
 import { Link, Navigate } from 'react-router'
 import { Pin, vars } from '../components/Paper'
 import { formatPhone, useAction } from '../components/AdCard'
 import ProfileFields from '../components/ProfileFields'
 import { PASSWORD_MIN } from '../../shared/rules'
-import { changePassword, currentUser, updateProfile, useDB, type ProfileInput } from '../lib/store'
+import { changePassword, currentUser, setAdHidden, updateProfile, useDB, type ProfileInput, type User } from '../lib/store'
 
 type PasswordValues = { current: string; next: string; next2: string }
 
@@ -49,6 +49,43 @@ function PasswordForm() {
   )
 }
 
+function AdVisibility({ me }: { me: User }) {
+  const { modal } = App.useApp()
+  const [run, busy] = useAction()
+
+  const remove = () =>
+    modal.confirm({
+      title: 'Удалить объявление с доски?',
+      content: 'Его перестанут видеть другие участники. Аккаунт, Skill Coins, обмены и отзывы останутся, а объявление можно вернуть в любой момент.',
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: () => run(() => setAdHidden(true), 'Объявление удалено с доски.'),
+    })
+
+  return (
+    <div className="flyer w-full max-w-[560px] px-5 pt-12 pb-8 sm:px-8" style={vars({ '--tilt': '0.2deg' })}>
+      <Pin />
+      <h2 className="h3">Объявление на доске</h2>
+      {me.hidden ? (
+        <>
+          <p className="mt-2 text-ink-2">Сейчас ваше объявление скрыто: его никто не видит, и новые ученики не могут открыть ваши контакты.</p>
+          <Button type="primary" size="large" className="mt-5" loading={busy} onClick={() => run(() => setAdHidden(false), 'Объявление снова на доске.')}>
+            Вернуть на доску
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="mt-2 text-ink-2">Объявление видно всем на доске. Если вы больше не хотите получать заявки, удалите его.</p>
+          <Button danger size="large" className="mt-5" loading={busy} onClick={remove}>
+            Удалить объявление
+          </Button>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const db = useDB()
   const me = currentUser(db)
@@ -78,7 +115,7 @@ export default function ProfilePage() {
   if (!me) return <Navigate to="/login?next=/profile" replace />
 
   const save = (v: ProfileInput) =>
-    run(() => updateProfile({ ...v, firstName: v.firstName.trim(), lastName: v.lastName.trim(), university: v.university.trim() }), 'Профиль сохранён. Изменения уже на доске.')
+    run(() => updateProfile({ ...v, firstName: v.firstName.trim(), lastName: v.lastName.trim(), university: v.university.trim() }), me.hidden ? 'Профиль сохранён.' : 'Профиль сохранён. Изменения уже на доске.')
 
   return (
     <section className="section-y bg-wall pt-[clamp(40px,6vw,72px)]" aria-labelledby="profile-title">
@@ -115,6 +152,7 @@ export default function ProfilePage() {
             </Button>
           </Form>
 
+          <AdVisibility me={me} />
           <PasswordForm />
         </div>
       </div>

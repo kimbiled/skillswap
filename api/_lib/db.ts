@@ -68,6 +68,8 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS exchanges_learner_idx ON exchanges (learner_id)`,
   `CREATE INDEX IF NOT EXISTS exchanges_teacher_idx ON exchanges (teacher_id)`,
   `CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions (user_id)`,
+  // The owner took their ad off the board; the account, coins and exchanges stay.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_hidden boolean NOT NULL DEFAULT false`,
 ]
 
 let ready: Promise<Query> | undefined

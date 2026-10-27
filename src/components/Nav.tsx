@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Badge, Button, Drawer } from 'antd'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { navLinks } from '../data'
-import { ACTIVE, availableOf, currentUser, useDB } from '../lib/store'
+import { ACTIVE, availableOf, currentUser, logout, useDB } from '../lib/store'
+import { useAction } from './AdCard'
 import { Logo } from './Paper'
 
 const linkClass = 'inline-flex min-h-11 items-center rounded-control px-3 text-[15px] font-medium text-ink-2 transition-colors hover:bg-ink/5 hover:text-ink'
@@ -11,6 +12,7 @@ export default function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const [run, busy] = useAction()
   const db = useDB()
   const me = currentUser(db)
   // Lessons the user is taking, plus lessons they teach that wait for their confirmation.
@@ -30,6 +32,8 @@ export default function Nav() {
     setOpen(false)
     navigate(to)
   }
+
+  const signOut = () => run(async () => { await logout(); go('/') }, 'Вы вышли из аккаунта.')
 
   return (
     <header className={`sticky top-0 z-50 border-b bg-page transition-colors duration-300 ${scrolled ? 'border-rule' : 'border-transparent'}`}>
@@ -68,6 +72,7 @@ export default function Nav() {
               <Badge count={pending} size="small" color="#1B2A6B">
                 <Button onClick={() => go('/me')}>Мои обмены</Button>
               </Badge>
+              <Button type="text" loading={busy} onClick={signOut}>Выйти</Button>
             </>
           ) : (
             <>
@@ -97,7 +102,11 @@ export default function Nav() {
           <Button type="primary" size="large" block className="mt-6" onClick={() => go(me ? '/me' : '/register')}>
             {me ? `Мои обмены${pending ? ` (${pending})` : ''}, ${coins} SC` : 'Регистрация'}
           </Button>
-          {!me && (
+          {me ? (
+            <Button size="large" block className="mt-3" loading={busy} onClick={signOut}>
+              Выйти
+            </Button>
+          ) : (
             <Button size="large" block className="mt-3" onClick={() => go('/login')}>
               Войти
             </Button>

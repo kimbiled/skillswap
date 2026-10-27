@@ -25,7 +25,7 @@ export default function BoardPage() {
     const wanted = new Set((me?.learn ?? []).map(norm))
     const featured = new Set(query ? [] : recommended.map((r) => r.user.id))
     const list = db.users.filter((u) => {
-      if (u.id === me?.id || featured.has(u.id)) return false
+      if (u.hidden || u.id === me?.id || featured.has(u.id)) return false
       // Once the visitor picked "связались" or "не вышло", the ad leaves their board for history.
       const ex = me ? exchangeWith(db, me.id, u.id) : undefined
       if (ex && ex.status !== 'opened') return false

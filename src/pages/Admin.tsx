@@ -72,6 +72,8 @@ const EVENT_LABEL: Record<string, { label: string; color?: string }> = {
   admin_purge_demo: { label: 'Удалены демо-данные', color: 'purple' },
   profile_update: { label: 'Изменил профиль', color: 'blue' },
   password_change: { label: 'Сменил пароль', color: 'blue' },
+  ad_hide: { label: 'Удалил объявление', color: 'orange' },
+  ad_show: { label: 'Вернул объявление', color: 'blue' },
 }
 
 const FIELD_LABEL: Record<string, string> = {
